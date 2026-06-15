@@ -18,21 +18,32 @@ export const App: React.FC<Props> = ({ delay = 300, onSelected }) => {
   const [appliedQuery, setAppliedQuery] = useState('');
   const [selectedPerson, setSelectedPerson] = useState<Person | null>(null);
   const [isOpen, setIsOpen] = useState(false);
-  const blurTimer = useRef<number>(0);
+
+  const blurTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastAppliedQuery = useRef('');
 
   useEffect(() => {
     const timer = setTimeout(() => {
+      const trimmed = query.trim();
+
+      if (query !== '' && trimmed === '') {
+        return;
+      }
+
+      if (query === lastAppliedQuery.current) {
+        return;
+      }
+
       setAppliedQuery(query);
+      lastAppliedQuery.current = query;
     }, delay);
 
-    return () => {
-      clearTimeout(timer);
-    };
+    return () => clearTimeout(timer);
   }, [query, delay]);
 
-  const filteredPerson = peopleFromServer.filter(person => {
-    const trimmedQuery = appliedQuery.trim();
+  const trimmedQuery = appliedQuery.trim();
 
+  const filteredPerson = peopleFromServer.filter(person => {
     if (!trimmedQuery) {
       return true;
     }
@@ -50,14 +61,15 @@ export const App: React.FC<Props> = ({ delay = 300, onSelected }) => {
           className="dropdown-item"
           data-cy="suggestion-item"
           style={{ cursor: 'pointer' }}
+          onMouseDown={e => e.preventDefault()}
           onClick={() => {
             setSelectedPerson(person);
-            if (onSelected) {
-              onSelected(person);
-            }
+            onSelected?.(person);
 
             setQuery(person.name);
             setAppliedQuery(person.name);
+            lastAppliedQuery.current = person.name;
+
             setIsOpen(false);
           }}
         >
@@ -92,19 +104,20 @@ export const App: React.FC<Props> = ({ delay = 300, onSelected }) => {
               value={query}
               onChange={e => {
                 setSelectedPerson(null);
-                if (onSelected) {
-                  onSelected(null);
-                }
+                onSelected?.(null);
 
                 setQuery(e.target.value);
                 setIsOpen(true);
               }}
               onFocus={() => {
-                window.clearTimeout(blurTimer.current);
+                if (blurTimer.current) {
+                  clearTimeout(blurTimer.current);
+                }
+
                 setIsOpen(true);
               }}
               onBlur={() => {
-                blurTimer.current = window.setTimeout(() => {
+                blurTimer.current = setTimeout(() => {
                   setIsOpen(false);
                 }, 200);
               }}
